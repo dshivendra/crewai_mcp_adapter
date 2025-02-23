@@ -1,5 +1,6 @@
 """Example usage of math server with CrewAI."""
 import asyncio
+import logging
 from crewai import Agent, Task, Crew
 from crewai_adapters import CrewAIAdapterClient
 from crewai_adapters.types import AdapterConfig
@@ -15,15 +16,23 @@ async def run_math_example():
                     "name": "add",
                     "description": "Add two numbers",
                     "parameters": {
-                        "a": {"type": "integer", "description": "First number"},
-                        "b": {"type": "integer", "description": "Second number"}
+                        "type": "object",
+                        "properties": {
+                            "a": {"type": "integer", "description": "First number"},
+                            "b": {"type": "integer", "description": "Second number"}
+                        },
+                        "required": ["a", "b"]
                     }
                 }, {
                     "name": "multiply",
                     "description": "Multiply two numbers",
                     "parameters": {
-                        "a": {"type": "integer", "description": "First number"},
-                        "b": {"type": "integer", "description": "Second number"}
+                        "type": "object",
+                        "properties": {
+                            "a": {"type": "integer", "description": "First number"},
+                            "b": {"type": "integer", "description": "Second number"}
+                        },
+                        "required": ["a", "b"]
                     }
                 }]
             })
@@ -34,7 +43,8 @@ async def run_math_example():
             role="Math Calculator",
             goal="Perform mathematical calculations accurately",
             backstory="I am a specialized calculator that performs arithmetic operations",
-            tools=client.get_tools()
+            tools=client.get_tools(),
+            verbose=True
         )
 
         # Create and assign task
@@ -44,17 +54,21 @@ async def run_math_example():
                 "1. First add 3 and 5\n"
                 "2. Then multiply the result by 12"
             ),
+            expected_output="The final result of (3 + 5) × 12",
             agent=calculator
         )
 
         # Create and run crew
         crew = Crew(
             agents=[calculator],
-            tasks=[math_task]
+            tasks=[math_task],
+            verbose=True
         )
 
         result = await crew.kickoff()
-        print(f"Calculation result: {result}")
+        logging.info(f"Calculation result: {result}")
+        return result
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     asyncio.run(run_math_example())

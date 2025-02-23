@@ -1,4 +1,5 @@
-"""Example math server using CrewAI adapters."""
+"""Example math server using native CrewAI adapters."""
+import logging
 from typing import Dict, Any
 from crewai_adapters import BaseAdapter, AdapterConfig, AdapterResponse
 from crewai_adapters.tools import CrewAITool
@@ -9,6 +10,7 @@ class MathServerAdapter(BaseAdapter):
     """Adapter for math operations."""
 
     def __init__(self, config: AdapterConfig = None):
+        """Initialize the math server adapter."""
         super().__init__(config or AdapterConfig({}))
         self.tools = self._register_tools()
 
@@ -31,8 +33,12 @@ class MathServerAdapter(BaseAdapter):
                 name="add",
                 description="Add two numbers",
                 parameters={
-                    "a": {"type": "integer", "description": "First number"},
-                    "b": {"type": "integer", "description": "Second number"}
+                    "type": "object",
+                    "properties": {
+                        "a": {"type": "integer", "description": "First number"},
+                        "b": {"type": "integer", "description": "Second number"}
+                    },
+                    "required": ["a", "b"]
                 },
                 func=self.add
             ),
@@ -40,8 +46,12 @@ class MathServerAdapter(BaseAdapter):
                 name="multiply",
                 description="Multiply two numbers",
                 parameters={
-                    "a": {"type": "integer", "description": "First number"},
-                    "b": {"type": "integer", "description": "Second number"}
+                    "type": "object",
+                    "properties": {
+                        "a": {"type": "integer", "description": "First number"},
+                        "b": {"type": "integer", "description": "Second number"}
+                    },
+                    "required": ["a", "b"]
                 },
                 func=self.multiply
             )
@@ -76,6 +86,7 @@ class MathServerAdapter(BaseAdapter):
                 )
             )
         except Exception as e:
+            logging.error(f"Math operation failed: {str(e)}")
             return AdapterResponse(
                 success=False,
                 error=str(e),
@@ -86,10 +97,10 @@ class MathServerAdapter(BaseAdapter):
             )
 
 if __name__ == "__main__":
-    # Example usage
     import asyncio
 
     async def main():
+        """Run example calculations."""
         adapter = MathServerAdapter()
 
         # Test addition
@@ -106,4 +117,5 @@ if __name__ == "__main__":
         )
         print(f"4 * 6 = {mult_result.data}")
 
+    logging.basicConfig(level=logging.INFO)
     asyncio.run(main())

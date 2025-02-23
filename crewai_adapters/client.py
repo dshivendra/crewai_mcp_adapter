@@ -1,13 +1,14 @@
-"""Client implementation for CrewAI adapters."""
+"""Client implementation for CrewAI adapters with MCP support."""
 from contextlib import AsyncExitStack
 from types import TracebackType
-from typing import Dict, List, Optional, Type, Union, cast, Any
+from typing import Dict, List, Optional, Type, Any, cast
 import logging
-from crewai.tools import BaseTool as Tool
+
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.types import Tool as MCPTool, CallToolResult, TextContent
 from pydantic import BaseModel, create_model, Field
+from crewai.tools import BaseTool
 
 from crewai_adapters.tools import MCPToolsAdapter, CrewAIToolsAdapter
 from crewai_adapters.types import AdapterConfig
@@ -17,13 +18,13 @@ class MCPServerConnectionError(Exception):
     pass
 
 class CrewAIAdapterClient:
-    """Client for managing CrewAI adapters and tools."""
+    """Client for managing CrewAI adapters and MCP tools."""
 
     def __init__(self) -> None:
         """Initialize the CrewAI adapter client."""
         self.exit_stack = AsyncExitStack()
         self.sessions: Dict[str, ClientSession] = {}
-        self.tools: Dict[str, List[Tool]] = {}
+        self.tools: Dict[str, List[BaseTool]] = {}
 
     async def connect_to_mcp_server(
         self,
@@ -35,7 +36,16 @@ class CrewAIAdapterClient:
         encoding: str = "utf-8",
         encoding_error_handler: str = "strict"
     ) -> None:
-        """Connect to an MCP server and register its tools."""
+        """Connect to an MCP server and register its tools.
+
+        Args:
+            server_name: Unique identifier for the server connection
+            command: Command to start the MCP server
+            args: Command line arguments for the server
+            env: Optional environment variables
+            encoding: Character encoding for communication
+            encoding_error_handler: How to handle encoding errors
+        """
         try:
             server_params = StdioServerParameters(
                 command=command,
@@ -74,23 +84,47 @@ class CrewAIAdapterClient:
             return [{
                 "name": tool.name,
                 "description": tool.description,
-                "parameters": tool.inputSchema
+                "parameters": self._convert_tool_schema(tool)
             } for tool in mcp_tools.tools]
         except Exception as e:
             logging.error(f"Failed to get tool configs: {str(e)}")
             return []
+
+    def _convert_tool_schema(self, tool: MCPTool) -> Dict[str, Any]:
+        """Convert MCP tool schema to CrewAI compatible format."""
+        if not tool.inputSchema:
+            return {}
+
+        schema = tool.inputSchema.model_json_schema()
+        return {
+            "type": "object",
+            "properties": schema.get("properties", {}),
+            "required": schema.get("required", [])
+        }
 
     async def register_adapter(
         self,
         name: str,
         config: Optional[AdapterConfig] = None
     ) -> None:
-        """Register a new native CrewAI adapter."""
+        """Register a new native CrewAI adapter.
+
+        Args:
+            name: Unique identifier for the adapter
+            config: Optional adapter configuration
+        """
         adapter = CrewAIToolsAdapter(config)
         self.tools[name] = adapter.get_all_tools()
 
-    def get_tools(self, server_name: Optional[str] = None) -> List[Tool]:
-        """Get all tools from registered adapters."""
+    def get_tools(self, server_name: Optional[str] = None) -> List[BaseTool]:
+        """Get all tools from registered adapters.
+
+        Args:
+            server_name: Optional server name to get tools from specific adapter
+
+        Returns:
+            List of CrewAI compatible tools
+        """
         if server_name:
             return self.tools.get(server_name, [])
         return [tool for tools in self.tools.values() for tool in tools]
