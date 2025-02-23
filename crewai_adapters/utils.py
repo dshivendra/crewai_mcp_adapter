@@ -6,30 +6,27 @@ from crewai_adapters.types import AdapterMetadata
 
 def create_metadata(
     source: str,
-    start_time: Optional[float] = None,
+    start_time: float,
     additional_data: Optional[Dict[str, Any]] = None
 ) -> AdapterMetadata:
     """Create metadata for adapter responses.
 
     Args:
         source: Source of the adapter execution
-        start_time: Optional start time for duration calculation
+        start_time: Start time for duration calculation
         additional_data: Additional metadata to include
 
     Returns:
         AdapterMetadata object
     """
+    duration = time.time() - start_time
+
     metadata: AdapterMetadata = {
         "timestamp": datetime.utcnow().isoformat(),
-        "source": source
+        "duration": duration,
+        "source": source,
+        "additional_data": additional_data
     }
-
-    if start_time is not None:
-        metadata["duration"] = time.time() - start_time
-
-    if additional_data:
-        # Add additional data under a dedicated key
-        metadata["additional_data"] = additional_data
 
     return metadata
 

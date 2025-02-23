@@ -6,14 +6,13 @@ class AdapterConfig(Dict[str, Any]):
     """Configuration type for adapters."""
     pass
 
-class AdapterMetadata(TypedDict, total=False):
+class AdapterMetadata(TypedDict):
     """Metadata for adapter responses."""
 
     timestamp: str
     duration: float
     source: str
-    # Allow additional fields
-    additional_data: Dict[str, Any]
+    additional_data: Optional[Dict[str, Any]]
 
 @dataclass
 class AdapterResponse:

@@ -4,6 +4,7 @@ from tests.fixtures import MockAdapter
 from crewai_adapters.base import BaseAdapter, AdapterRegistry
 from crewai_adapters.types import AdapterConfig, AdapterResponse
 from crewai_adapters.exceptions import AdapterError, ConfigurationError
+from langchain_core.tools import BaseTool
 
 def test_adapter_registry():
     """Test adapter registry functionality."""

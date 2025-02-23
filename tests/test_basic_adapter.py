@@ -1,8 +1,10 @@
 """Tests for basic adapter implementation."""
 import pytest
 from crewai_adapters.adapters.basic import BasicAdapter
+from crewai_adapters.tools import CrewAIToolsAdapter
 from crewai_adapters.exceptions import ConfigurationError
 from crewai_adapters.types import AdapterConfig, AdapterResponse
+from tests.fixtures import create_mock_crewai_tool
 
 @pytest.mark.asyncio
 class TestBasicAdapter:
@@ -16,8 +18,8 @@ class TestBasicAdapter:
         assert response.success
         assert response.data == "TestAdapter: Test message"
         assert response.metadata is not None
-        assert "timestamp" in response.metadata
-        assert "duration" in response.metadata
+        assert isinstance(response.metadata["timestamp"], str)
+        assert isinstance(response.metadata["duration"], float)
         assert response.metadata["source"] == "BasicAdapter"
 
     async def test_missing_config(self):
@@ -34,23 +36,86 @@ class TestBasicAdapter:
         assert response.success
         assert response.data == "TestAdapter: Hello from BasicAdapter!"
 
-    async def test_metadata_structure(self):
-        """Test metadata structure in response."""
-        adapter = BasicAdapter(AdapterConfig({"name": "TestAdapter"}))
+@pytest.mark.asyncio
+class TestCrewAIToolsAdapter:
+    """Test suite for CrewAIToolsAdapter."""
 
-        response = await adapter.execute()
-        assert response.metadata is not None
-        assert isinstance(response.metadata["timestamp"], str)
-        assert isinstance(response.metadata["duration"], float)
-        assert response.metadata["source"] == "BasicAdapter"
-
-    async def test_additional_parameters(self):
-        """Test adapter with additional parameters."""
-        adapter = BasicAdapter(AdapterConfig({"name": "TestAdapter"}))
+    async def test_successful_execution(self):
+        """Test successful adapter execution."""
+        mock_tool = create_mock_crewai_tool()
+        adapter = CrewAIToolsAdapter(AdapterConfig({
+            "tools": [{
+                "name": mock_tool.name,
+                "description": mock_tool.description,
+                "parameters": mock_tool.parameters,
+                "func": mock_tool.func
+            }]
+        }))
 
         response = await adapter.execute(
-            message="Test",
-            additional_param="ignored"
+            tool_name=mock_tool.name,
+            parameters={"test": "value"}
         )
         assert response.success
-        assert response.data == "TestAdapter: Test"
+        assert response.data == "mock_result"
+        assert response.metadata is not None
+        assert response.metadata["source"] == "CrewAIToolsAdapter"
+
+    async def test_missing_config(self):
+        """Test adapter behavior with missing configuration."""
+        with pytest.raises(ConfigurationError):
+            adapter = CrewAIToolsAdapter(AdapterConfig({}))
+            await adapter.execute()
+
+    async def test_missing_tool(self):
+        """Test adapter with non-existent tool."""
+        adapter = CrewAIToolsAdapter(AdapterConfig({
+            "tools": [{
+                "name": "test_tool",
+                "description": "Test tool",
+                "parameters": {}
+            }]
+        }))
+
+        response = await adapter.execute(tool_name="non_existent")
+        assert not response.success
+        assert "Tool non_existent not found" == response.error
+
+    async def test_tool_conversion(self):
+        """Test conversion to CrewAI tool."""
+        mock_tool = create_mock_crewai_tool()
+        adapter = CrewAIToolsAdapter(AdapterConfig({
+            "tools": [{
+                "name": mock_tool.name,
+                "description": mock_tool.description,
+                "parameters": mock_tool.parameters,
+                "func": mock_tool.func
+            }]
+        }))
+
+        tools = adapter.get_all_tools()
+        assert len(tools) == 1
+        assert tools[0].name == mock_tool.name
+        assert tools[0].description == mock_tool.description
+
+    async def test_metadata_structure(self):
+        """Test metadata in response."""
+        mock_tool = create_mock_crewai_tool()
+        adapter = CrewAIToolsAdapter(AdapterConfig({
+            "tools": [{
+                "name": mock_tool.name,
+                "description": mock_tool.description,
+                "parameters": mock_tool.parameters,
+                "func": mock_tool.mock_execute
+            }]
+        }))
+
+        response = await adapter.execute(
+            tool_name=mock_tool.name,
+            parameters={"test": "value"}
+        )
+        assert response.metadata is not None
+        assert "timestamp" in response.metadata
+        assert "duration" in response.metadata
+        assert "source" in response.metadata
+        assert response.metadata["source"] == "CrewAIToolsAdapter"
