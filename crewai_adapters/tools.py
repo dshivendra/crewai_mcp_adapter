@@ -1,84 +1,64 @@
-
-"""Tools implementation for CrewAI adapters."""
+"""Tools implementation following LangChain MCP adapter pattern."""
 from typing import Any, Dict, List, Optional
+from mcp import MCPTool, MCPToolkit
 from crewai_adapters.base import BaseAdapter
-from crewai_adapters.types import AdapterResponse, AdapterConfig
+from crewai_adapters.types import AdapterResponse
 from crewai_adapters.exceptions import ConfigurationError
-from crewai_adapters.utils import create_metadata
 
-class ToolsAdapter(BaseAdapter):
-    """Adapter for handling CrewAI tools integration."""
-    
+class MCPToolsAdapter(BaseAdapter):
+    """Adapter for handling CrewAI tools using MCP protocol."""
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(config)
+        self.toolkit = MCPToolkit()
+        self._register_tools()
+
     def _validate_config(self) -> None:
-        """Validate the tools configuration."""
-        if "tools" not in self.config:
-            raise ConfigurationError("Missing required tools configuration")
-            
-        if not isinstance(self.config["tools"], list):
-            raise ConfigurationError("Tools configuration must be a list")
-            
+        if not self.config.get("tools"):
+            raise ConfigurationError("Tools configuration is required")
+
+    def _register_tools(self) -> None:
+        """Register tools from config with MCP toolkit."""
+        for tool_config in self.config.get("tools", []):
+            tool = MCPTool(
+                name=tool_config["name"],
+                description=tool_config.get("description", ""),
+                parameters=tool_config.get("parameters", {})
+            )
+            self.toolkit.add_tool(tool)
+
     async def execute(self, **kwargs: Any) -> AdapterResponse:
-        """Execute tool operations.
-        
+        """Execute tool operation using MCP protocol.
+
         Args:
-            tool_name: Name of the tool to execute
+            tool_name: Name of tool to execute
             parameters: Tool parameters
-            **kwargs: Additional execution parameters
-            
+            **kwargs: Additional parameters
+
         Returns:
-            AdapterResponse with tool execution results
+            AdapterResponse with execution results
         """
-        start_time = kwargs.pop("start_time", None)
         tool_name = kwargs.get("tool_name")
         parameters = kwargs.get("parameters", {})
-        
+
+        if not tool_name:
+            raise ConfigurationError("Tool name is required")
+
         try:
-            tool_result = self._execute_tool(tool_name, parameters)
-            metadata = create_metadata(
-                source=self.__class__.__name__,
-                start_time=start_time,
-                additional_data={"tool": tool_name}
-            )
-            
+            tool = self.toolkit.get_tool(tool_name)
+            result = await tool.execute(parameters)
+
             return AdapterResponse(
                 success=True,
-                data=tool_result,
-                metadata=metadata
+                data=result,
+                metadata={
+                    "tool": tool_name,
+                    "parameters": parameters
+                }
             )
-            
+
         except Exception as e:
             return AdapterResponse(
                 success=False,
                 error=str(e)
             )
-            
-    def _execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a specific tool with given parameters.
-        
-        Args:
-            tool_name: Name of the tool to execute
-            parameters: Tool execution parameters
-            
-        Returns:
-            Tool execution results
-            
-        Raises:
-            ConfigurationError: If tool is not found
-        """
-        available_tools = {tool["name"]: tool for tool in self.config["tools"]}
-        
-        if tool_name not in available_tools:
-            raise ConfigurationError(f"Tool not found: {tool_name}")
-            
-        tool_config = available_tools[tool_name]
-        
-        # Basic tool execution logic
-        result = {
-            "tool_name": tool_name,
-            "status": "executed",
-            "parameters": parameters,
-            "config": tool_config,
-            "result": f"Executed {tool_name} with parameters: {parameters}"
-        }
-        
-        return result
