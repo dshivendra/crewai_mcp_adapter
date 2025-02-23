@@ -1,113 +1,100 @@
 # Usage Examples
 
-## Basic Adapter Usage
+## Basic CrewAI Adapter Usage
 
-### Simple Message Processing
+### Tool Integration Example
 
 ```python
-from crewai_adapters.adapters import BasicAdapter
+from crewai import Agent, Task
+from crewai_adapters import CrewAIAdapterClient, CrewAITool
+from crewai_adapters.types import AdapterConfig
 
-async def process_message():
-    adapter = BasicAdapter({"name": "MessageProcessor"})
-    response = await adapter.execute(message="Process this message")
+async def setup_tools():
+    # Create and configure the adapter client
+    async with CrewAIAdapterClient() as client:
+        # Configure tools
+        tool_config = AdapterConfig({
+            "tools": [{
+                "name": "data_processor",
+                "description": "Process data using the adapter",
+                "parameters": {
+                    "data": {"type": "string", "description": "Data to process"}
+                },
+                "func": process_data  # Your async function
+            }]
+        })
 
-    if response.success:
-        print(f"Processed: {response.data}")
-        print(f"Processing time: {response.metadata['duration']}s")
-    else:
-        print(f"Error: {response.error}")
+        # Register the adapter
+        await client.register_adapter("data_tools", tool_config)
+
+        # Get all tools
+        tools = client.get_tools()
+
+        # Create an agent with the tools
+        agent = Agent(
+            name="DataAgent",
+            goal="Process data efficiently",
+            backstory="I am an agent that processes data",
+            tools=tools
+        )
+
+        # Create and execute a task
+        task = Task(
+            description="Process the given dataset",
+            agent=agent
+        )
+
+        return task
+
+# Example async tool function
+async def process_data(data: str) -> str:
+    return f"Processed: {data}"
+
+# Usage in CrewAI
+task = await setup_tools()
+result = await task.execute()
 ```
 
-## Custom Adapter Implementation
+## Advanced Usage
 
-### Creating a Custom API Adapter
+### Custom Tool Implementation
 
 ```python
-from crewai_adapters import BaseAdapter, AdapterResponse
-from crewai_adapters.utils import create_metadata
-import aiohttp
-import time
+from crewai_adapters import CrewAIToolsAdapter, CrewAITool
+from crewai_adapters.types import AdapterConfig
 
-class APIAdapter(BaseAdapter):
-    def _validate_config(self) -> None:
-        required = ["api_key", "base_url"]
-        for field in required:
-            if field not in self.config:
-                raise ConfigurationError(f"Missing {field}")
+class CustomToolsAdapter(CrewAIToolsAdapter):
+    async def execute(self, **kwargs):
+        tool_name = kwargs.get("tool_name")
+        parameters = kwargs.get("parameters", {})
 
-    async def execute(self, **kwargs) -> AdapterResponse:
-        start_time = time.time()
-
-        try:
-            endpoint = kwargs.get("endpoint", "")
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.config['base_url']}/{endpoint}",
-                    headers={"Authorization": f"Bearer {self.config['api_key']}"}
-                ) as response:
-                    data = await response.json()
-
-                    return AdapterResponse(
-                        success=True,
-                        data=data,
-                        metadata=create_metadata(
-                            source=self.__class__.__name__,
-                            start_time=start_time
-                        )
-                    )
-        except Exception as e:
+        if tool_name == "custom_processor":
+            # Custom implementation
+            result = await self.process_custom_data(parameters)
             return AdapterResponse(
-                success=False,
-                error=str(e),
-                metadata=create_metadata(
-                    source=self.__class__.__name__,
-                    start_time=start_time
-                )
+                success=True,
+                data=result
             )
 
-# Register the adapter
-AdapterRegistry.register("api", APIAdapter)
+        return await super().execute(**kwargs)
+
+    async def process_custom_data(self, parameters):
+        # Your custom processing logic
+        return f"Custom processed: {parameters.get('data')}"
 
 # Usage
-adapter = APIAdapter({
-    "api_key": "your-api-key",
-    "base_url": "https://api.example.com"
-})
-response = await adapter.execute(endpoint="users")
-```
+adapter = CustomToolsAdapter(AdapterConfig({
+    "tools": [{
+        "name": "custom_processor",
+        "description": "Custom data processor",
+        "parameters": {
+            "data": {"type": "string"}
+        }
+    }]
+}))
 
-## Working with CrewAI
-
-### Integration Example
-
-```python
-from crewai import Agent, Task, Crew
-from crewai_adapters.adapters import BasicAdapter
-
-# Create an adapter
-data_processor = BasicAdapter({"name": "DataProcessor"})
-
-# Create an agent that uses the adapter
-agent = Agent(
-    name="ProcessingAgent",
-    goal="Process data using adapters",
-    backstory="I am an agent that processes data using various adapters",
-    tools=[data_processor.execute]
-)
-
-# Create a task
-task = Task(
-    description="Process some data",
-    agent=agent
-)
-
-# Create and run the crew
-crew = Crew(
-    agents=[agent],
-    tasks=[task]
-)
-
-result = crew.kickoff()
+# Get CrewAI compatible tools
+crewai_tools = adapter.get_all_tools()
 ```
 
 ## Error Handling
@@ -132,4 +119,4 @@ async def safe_execute_adapter(adapter, **kwargs):
         return None
 ```
 
-For more examples and use cases, check out the [test files](../tests/) in the repository.
+For more examples and implementations, check out the test files in the repository.

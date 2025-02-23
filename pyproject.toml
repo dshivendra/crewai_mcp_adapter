@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Native adapter support for CrewAI"
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.3.0",
+    "crewai>=0.1.0",
     "pytest>=8.3.4",
     "pytest-asyncio>=0.25.3",
 ]
