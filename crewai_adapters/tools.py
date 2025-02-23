@@ -47,17 +47,20 @@ class ConcreteCrewAITool(BaseTool):
 
     async def _execute_async(self, **kwargs: Any) -> str:
         """Execute async function safely."""
-        result = self._execution_func(**kwargs)
-        if asyncio.iscoroutine(result):
-            result = await result
-        return str(result)
+        try:
+            result = self._execution_func(**kwargs)
+            if asyncio.iscoroutine(result):
+                result = await result
+            return str(result)
+        except Exception as e:
+            logging.error(f"Tool execution failed: {str(e)}")
+            raise ExecutionError(f"Failed to execute {self.name}: {str(e)}")
 
     def _run(self, **kwargs: Any) -> str:
         """Execute the tool synchronously."""
         try:
             result = self._execution_func(**kwargs)
             if asyncio.iscoroutine(result):
-                # Create a new event loop in a new thread for async execution
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 try:
@@ -172,7 +175,10 @@ class CrewAIToolsAdapter(BaseAdapter):
 
         try:
             crewai_tool = self.convert_to_crewai_tool(tool)
-            result = crewai_tool._run(**parameters)  # Always use sync execution for simplicity
+            if asyncio.get_event_loop().is_running():
+                result = await crewai_tool._arun(**parameters)
+            else:
+                result = crewai_tool._run(**parameters)
 
             return AdapterResponse(
                 success=True,
