@@ -1,0 +1,20 @@
+[project]
+name = "crewai-adapters"
+version = "0.1.0"
+description = "Native adapter support for CrewAI"
+requires-python = ">=3.11"
+dependencies = [
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.3",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+asyncio_fixture_loop_scope = "function"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "asyncio: marks tests as asyncio coroutines",
+]
