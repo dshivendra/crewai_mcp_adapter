@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
-    { name = "CrewAI Adapters Contributors", email = "contributors@example.com" }
+    { name = "Shivendra Kumar", email = "dshivendra88@gmail.com" }
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
