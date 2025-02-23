@@ -39,7 +39,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python -m pytest tests/ -v"
+args = "PYTHONPATH=$PYTHONPATH:. python -m pytest tests/ -v"
 
 [[workflows.workflow]]
 name = "Python Script"
@@ -84,4 +84,4 @@ task = "shell.exec"
 args = "python examples/math_example.py"
 
 [deployment]
-run = ["sh", "-c", "python -m pytest tests/ -v"]
+run = ["sh", "-c", "PYTHONPATH=$PYTHONPATH:. python -m pytest tests/ -v"]

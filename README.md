@@ -4,7 +4,7 @@ A Python library extending CrewAI's adapter ecosystem with [Model Context Protoc
 
 ## Features
 
-- 🔌 Native CrewAI integration and adapter patterns
+- 🔌 Native CrewAI integration and adapter patterns 
 - 🛠️ MCP protocol support for tool integration
 - 🧩 Easy-to-use interface for extending and creating new adapters
 - 📝 Type-safe implementation with Pydantic
