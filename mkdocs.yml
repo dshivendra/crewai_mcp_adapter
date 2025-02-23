@@ -1,0 +1,59 @@
+site_name: CrewAI MCP Adapter
+site_description: Native adapter support for CrewAI with Model Context Protocol (MCP) integration
+site_url: https://github.com/dshivendra/crewai_mcp_adapter
+repo_url: https://github.com/dshivendra/crewai_mcp_adapter
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  language: en
+  palette:
+    - scheme: default
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to dark mode
+      primary: indigo
+      accent: indigo
+    - scheme: slate
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+      primary: indigo
+      accent: indigo
+
+nav:
+  - Home: index.md
+  - Getting Started: 
+    - Installation: index.md
+    - Quick Start: examples.md
+  - API Reference: api_reference.md
+  - Examples: examples.md
+  - Contributing: ../CONTRIBUTING.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+copyright: |
+  &copy; 2024 <a href="https://github.com/dshivendra"  target="_blank" rel="noopener">Shivendra Kumar</a>
