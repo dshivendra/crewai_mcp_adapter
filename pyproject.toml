@@ -1,6 +1,6 @@
 [project]
 name = "crewai-adapters"
-version = "0.1.1"
+version = "0.1.2"
 description = "Native adapter support for CrewAI with Model Context Protocol (MCP) integration"
 requires-python = ">=3.11"
 readme = "README.md"
@@ -23,6 +23,8 @@ dependencies = [
     "pydantic>=2.0.0",
     "mcp>=1.3.0",
     "pydantic-core>=2.0.0",
+    "build>=1.2.2.post1",
+    "twine>=6.1.0",
 ]
 
 [project.optional-dependencies]
