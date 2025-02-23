@@ -1,0 +1,85 @@
+(Due to technical issues, the search service is temporarily unavailable.)
+
+To resolve the issues, let's address the warning and test failures systematically:
+
+### 1. **DeprecationWarning: `open_text` → `files()`**
+**Update the code in `litellm/utils.py`** to use the modern `importlib.resources` API:
+
+```python
+from importlib.resources import files
+
+# Replace:
+# with resources.open_text("litellm", "config.json") as f:
+#     config = json.load(f)
+
+# With:
+config_path = files("litellm").joinpath("config.json")
+with config_path.open("r") as f:
+    config = json.load(f)
+```
+
+### 2. **Pydantic Validation Errors in Tests**
+The errors indicate input data doesn’t match the `ConcreteCrewAITool` model. Here's how to debug:
+
+#### Example Test Fix
+Suppose your test uses a tool definition like:
+```python
+tool_data = {
+    "name": "example_tool",
+    "description": "An example tool",  # Ensure this is included
+    "parameters": {
+        "type": "object",
+        "properties": {"param1": {"type": "string"}}
+    }
+}
+```
+
+**Ensure:**
+- All required fields (e.g., `name`, `description`, `parameters`) are present.
+- Data types match the model (e.g., `parameters` is a JSON schema `dict`, not a list).
+
+#### Validate Model Definition
+Confirm `ConcreteCrewAITool` is defined correctly. Example Pydantic model:
+```python
+from pydantic import BaseModel
+
+class ConcreteCrewAITool(BaseModel):
+    name: str
+    description: str
+    parameters: dict  # Or a more specific schema
+```
+
+### 3. **Run Tests with Verbose Output**
+Get full error details using:
+```bash
+pytest -v tests/test_basic_adapter.py tests/test_mcp_adapter.py
+```
+
+### 4. **Adjust Test Data**
+If the error shows missing fields like `description`, update the test data to include them. For example:
+```python
+# In test setup
+def test_tool_conversion():
+    tool_input = {
+        "name": "search",
+        "description": "Search the web",  # Added if missing
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string"}}
+        }
+    }
+    tool = ConcreteCrewAITool(**tool_input)
+    # Continue with assertions
+```
+
+### 5. **Check for Schema Mismatches**
+If `parameters` expects a specific JSON schema structure, ensure your test data matches it exactly (e.g., `"type": "object"` is present).
+
+---
+
+**Summary:**
+1. Replace deprecated `open_text` with `files()`.
+2. Validate test data against the Pydantic model’s requirements.
+3. Include all required fields and ensure correct data types.
+
+After making these changes, rerun your tests to confirm the fixes. If the validation errors persist, check the exact fields reported in the error message and adjust accordingly.
