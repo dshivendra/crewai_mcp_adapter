@@ -3,7 +3,7 @@ from contextlib import AsyncExitStack
 from types import TracebackType
 from typing import Dict, List, Optional, Type, Union, cast, Any
 import logging
-from crewai.tools import Tool
+from crewai.tools import BaseTool as Tool
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.types import Tool as MCPTool, CallToolResult, TextContent
@@ -56,53 +56,29 @@ class CrewAIAdapterClient:
 
             await session.initialize()
             self.sessions[server_name] = session
-            self.tools[server_name] = await self._load_crewai_tools(session)
+
+            # Create adapter and load tools
+            adapter = MCPToolsAdapter(AdapterConfig({
+                "tools": await self._get_mcp_tool_configs(session)
+            }))
+            self.tools[server_name] = adapter.get_all_tools()
 
         except Exception as e:
             logging.error(f"Connection failed: {str(e)}")
             raise MCPServerConnectionError(f"Failed to connect to {server_name}") from e
 
-    async def _load_crewai_tools(self, session: ClientSession) -> List[Tool]:
-        """Load and convert MCP tools to CrewAI tools."""
+    async def _get_mcp_tool_configs(self, session: ClientSession) -> List[Dict[str, Any]]:
+        """Get tool configurations from MCP server."""
         try:
             mcp_tools = await session.list_tools()
-            return [self._create_crewai_tool(session, tool) for tool in mcp_tools.tools]
+            return [{
+                "name": tool.name,
+                "description": tool.description,
+                "parameters": tool.inputSchema
+            } for tool in mcp_tools.tools]
         except Exception as e:
-            logging.error(f"Tool loading failed: {str(e)}")
+            logging.error(f"Failed to get tool configs: {str(e)}")
             return []
-
-    def _create_crewai_tool(self, session: ClientSession, mcp_tool: MCPTool) -> Tool:
-        """Create CrewAI tool from MCP definition."""
-        fields = {
-            name: (field.type_, Field(..., description=field.field_info.description))
-            for name, field in mcp_tool.inputSchema.__fields__.items()
-        }
-
-        InputModel = create_model(
-            f"{mcp_tool.name}Input", 
-            **fields
-        )
-
-        async def mcp_tool_wrapper(**kwargs: Any) -> Any:
-            """Execute MCP tool through CrewAI interface."""
-            try:
-                result = await session.call_tool(mcp_tool.name, kwargs)
-                if result.isError:
-                    errors = [c.text for c in result.content if isinstance(c, TextContent)]
-                    raise RuntimeError(f"MCP Error: {' | '.join(errors)}")
-
-                outputs = [c.text for c in result.content if isinstance(c, TextContent)]
-                return "\n\n".join(outputs)
-            except Exception as e:
-                logging.error(f"Tool error: {mcp_tool.name} - {str(e)}")
-                raise RuntimeError(f"Tool execution failed: {str(e)}")
-
-        return Tool(
-            name=mcp_tool.name,
-            description=mcp_tool.description or "",
-            func=mcp_tool_wrapper,
-            args_schema=InputModel
-        )
 
     async def register_adapter(
         self,
@@ -111,8 +87,7 @@ class CrewAIAdapterClient:
     ) -> None:
         """Register a new native CrewAI adapter."""
         adapter = CrewAIToolsAdapter(config)
-        tools = adapter.get_all_tools()
-        self.tools[name] = tools
+        self.tools[name] = adapter.get_all_tools()
 
     def get_tools(self, server_name: Optional[str] = None) -> List[Tool]:
         """Get all tools from registered adapters."""

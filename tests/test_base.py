@@ -1,7 +1,7 @@
 """Tests for base adapter functionality."""
 import pytest
 from tests.fixtures import MockAdapter
-from crewai.tools import Tool
+from crewai.tools import BaseTool
 from crewai_adapters.base import BaseAdapter, AdapterRegistry
 from crewai_adapters.types import AdapterConfig, AdapterResponse
 from crewai_adapters.exceptions import AdapterError, ConfigurationError

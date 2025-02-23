@@ -1,6 +1,6 @@
 """Tests for basic adapter implementation."""
 import pytest
-from crewai.tools import Tool
+from crewai.tools import BaseTool
 from crewai_adapters.adapters.basic import BasicAdapter
 from crewai_adapters.tools import CrewAIToolsAdapter
 from crewai_adapters.exceptions import ConfigurationError
@@ -43,7 +43,7 @@ class TestCrewAIToolsAdapter:
 
     async def test_successful_execution(self):
         """Test successful adapter execution."""
-        mock_tool = create_mock_crewai_tool()
+        mock_tool = await create_mock_crewai_tool()
         adapter = CrewAIToolsAdapter(AdapterConfig({
             "tools": [{
                 "name": mock_tool.name,
@@ -58,7 +58,7 @@ class TestCrewAIToolsAdapter:
             parameters={"test": "value"}
         )
         assert response.success
-        assert response.data == "mock_result"
+        assert response.data == "mock_result: value"
         assert response.metadata is not None
         assert response.metadata["source"] == "CrewAIToolsAdapter"
 
@@ -84,7 +84,7 @@ class TestCrewAIToolsAdapter:
 
     async def test_tool_conversion(self):
         """Test conversion to CrewAI tool."""
-        mock_tool = create_mock_crewai_tool()
+        mock_tool = await create_mock_crewai_tool()
         adapter = CrewAIToolsAdapter(AdapterConfig({
             "tools": [{
                 "name": mock_tool.name,
@@ -96,13 +96,13 @@ class TestCrewAIToolsAdapter:
 
         tools = adapter.get_all_tools()
         assert len(tools) == 1
-        assert isinstance(tools[0], Tool)
+        assert isinstance(tools[0], BaseTool)
         assert tools[0].name == mock_tool.name
         assert tools[0].description == mock_tool.description
 
     async def test_metadata_structure(self):
         """Test metadata in response."""
-        mock_tool = create_mock_crewai_tool()
+        mock_tool = await create_mock_crewai_tool()
         adapter = CrewAIToolsAdapter(AdapterConfig({
             "tools": [{
                 "name": mock_tool.name,
