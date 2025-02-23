@@ -54,3 +54,7 @@ markers = [
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["crewai_adapters*"]
+exclude = ["attached_assets*", "tests*", "examples*"]
