@@ -1,5 +1,6 @@
 """Tests for basic adapter implementation."""
 import pytest
+from crewai.tools import Tool
 from crewai_adapters.adapters.basic import BasicAdapter
 from crewai_adapters.tools import CrewAIToolsAdapter
 from crewai_adapters.exceptions import ConfigurationError
@@ -95,6 +96,7 @@ class TestCrewAIToolsAdapter:
 
         tools = adapter.get_all_tools()
         assert len(tools) == 1
+        assert isinstance(tools[0], Tool)
         assert tools[0].name == mock_tool.name
         assert tools[0].description == mock_tool.description
 
@@ -106,7 +108,7 @@ class TestCrewAIToolsAdapter:
                 "name": mock_tool.name,
                 "description": mock_tool.description,
                 "parameters": mock_tool.parameters,
-                "func": mock_tool.mock_execute
+                "func": mock_tool.func
             }]
         }))
 

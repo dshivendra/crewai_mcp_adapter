@@ -1,12 +1,20 @@
 """Client implementation for CrewAI adapters."""
 from contextlib import AsyncExitStack
 from types import TracebackType
-from typing import Dict, List, Optional, Type, Union
-from langchain_core.tools import BaseTool
+from typing import Dict, List, Optional, Type, Union, cast, Any
+import logging
+from crewai.tools import Tool
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from mcp.types import Tool as MCPTool, CallToolResult, TextContent
+from pydantic import BaseModel, create_model, Field
+
 from crewai_adapters.tools import MCPToolsAdapter, CrewAIToolsAdapter
 from crewai_adapters.types import AdapterConfig
+
+class MCPServerConnectionError(Exception):
+    """Exception for MCP connection failures."""
+    pass
 
 class CrewAIAdapterClient:
     """Client for managing CrewAI adapters and tools."""
@@ -15,8 +23,7 @@ class CrewAIAdapterClient:
         """Initialize the CrewAI adapter client."""
         self.exit_stack = AsyncExitStack()
         self.sessions: Dict[str, ClientSession] = {}
-        self.adapters: Dict[str, Union[MCPToolsAdapter, CrewAIToolsAdapter]] = {}
-        self.adapter_tools: Dict[str, List[BaseTool]] = {}
+        self.tools: Dict[str, List[Tool]] = {}
 
     async def connect_to_mcp_server(
         self,
@@ -28,81 +35,90 @@ class CrewAIAdapterClient:
         encoding: str = "utf-8",
         encoding_error_handler: str = "strict"
     ) -> None:
-        """Connect to an MCP server and register its tools.
+        """Connect to an MCP server and register its tools."""
+        try:
+            server_params = StdioServerParameters(
+                command=command,
+                args=args,
+                env=env,
+                encoding=encoding,
+                encoding_error_handler=encoding_error_handler
+            )
 
-        Args:
-            server_name: Name to identify the server
-            command: Command to start the server
-            args: Command arguments
-            env: Optional environment variables
-            encoding: Server output encoding
-            encoding_error_handler: How to handle encoding errors
-        """
-        server_params = StdioServerParameters(
-            command=command,
-            args=args,
-            env=env,
-            encoding=encoding,
-            encoding_error_handler=encoding_error_handler
+            transport = await self.exit_stack.enter_async_context(
+                stdio_client(server_params)
+            )
+            read, write = transport
+            session = cast(
+                ClientSession,
+                await self.exit_stack.enter_async_context(ClientSession(read, write))
+            )
+
+            await session.initialize()
+            self.sessions[server_name] = session
+            self.tools[server_name] = await self._load_crewai_tools(session)
+
+        except Exception as e:
+            logging.error(f"Connection failed: {str(e)}")
+            raise MCPServerConnectionError(f"Failed to connect to {server_name}") from e
+
+    async def _load_crewai_tools(self, session: ClientSession) -> List[Tool]:
+        """Load and convert MCP tools to CrewAI tools."""
+        try:
+            mcp_tools = await session.list_tools()
+            return [self._create_crewai_tool(session, tool) for tool in mcp_tools.tools]
+        except Exception as e:
+            logging.error(f"Tool loading failed: {str(e)}")
+            return []
+
+    def _create_crewai_tool(self, session: ClientSession, mcp_tool: MCPTool) -> Tool:
+        """Create CrewAI tool from MCP definition."""
+        fields = {
+            name: (field.type_, Field(..., description=field.field_info.description))
+            for name, field in mcp_tool.inputSchema.__fields__.items()
+        }
+
+        InputModel = create_model(
+            f"{mcp_tool.name}Input", 
+            **fields
         )
 
-        # Create and store the connection
-        stdio_transport = await self.exit_stack.enter_async_context(
-            stdio_client(server_params)
+        async def mcp_tool_wrapper(**kwargs: Any) -> Any:
+            """Execute MCP tool through CrewAI interface."""
+            try:
+                result = await session.call_tool(mcp_tool.name, kwargs)
+                if result.isError:
+                    errors = [c.text for c in result.content if isinstance(c, TextContent)]
+                    raise RuntimeError(f"MCP Error: {' | '.join(errors)}")
+
+                outputs = [c.text for c in result.content if isinstance(c, TextContent)]
+                return "\n\n".join(outputs)
+            except Exception as e:
+                logging.error(f"Tool error: {mcp_tool.name} - {str(e)}")
+                raise RuntimeError(f"Tool execution failed: {str(e)}")
+
+        return Tool(
+            name=mcp_tool.name,
+            description=mcp_tool.description or "",
+            func=mcp_tool_wrapper,
+            args_schema=InputModel
         )
-        read, write = stdio_transport
-        session = await self.exit_stack.enter_async_context(
-            ClientSession(read, write)
-        )
-
-        # Initialize the session
-        await session.initialize()
-        self.sessions[server_name] = session
-
-        # Create and register MCP adapter
-        tools = await session.list_tools()
-        adapter = MCPToolsAdapter(AdapterConfig({
-            "tools": [
-                {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "parameters": tool.input_schema
-                }
-                for tool in tools.tools
-            ]
-        }))
-
-        self.adapters[server_name] = adapter
-        self.adapter_tools[server_name] = adapter.get_all_tools()
 
     async def register_adapter(
         self,
         name: str,
         config: Optional[AdapterConfig] = None
     ) -> None:
-        """Register a new native CrewAI adapter.
-
-        Args:
-            name: Name for the adapter
-            config: Optional configuration for the adapter
-        """
+        """Register a new native CrewAI adapter."""
         adapter = CrewAIToolsAdapter(config)
-        self.adapters[name] = adapter
-
-        # Load tools from this adapter
         tools = adapter.get_all_tools()
-        self.adapter_tools[name] = tools
+        self.tools[name] = tools
 
-    def get_tools(self) -> List[BaseTool]:
-        """Get all tools from all registered adapters.
-
-        Returns:
-            List of all available CrewAI tools
-        """
-        all_tools: List[BaseTool] = []
-        for adapter_tools in self.adapter_tools.values():
-            all_tools.extend(adapter_tools)
-        return all_tools
+    def get_tools(self, server_name: Optional[str] = None) -> List[Tool]:
+        """Get all tools from registered adapters."""
+        if server_name:
+            return self.tools.get(server_name, [])
+        return [tool for tools in self.tools.values() for tool in tools]
 
     async def __aenter__(self) -> "CrewAIAdapterClient":
         """Async context manager entry."""
