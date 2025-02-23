@@ -14,8 +14,16 @@ A Python library extending CrewAI's adapter ecosystem with [Model Context Protoc
 
 ## Installation
 
+You can install the package directly from PyPI:
+
 ```bash
 pip install crewai-adapters
+```
+
+Or install from source:
+
+```bash
+pip install git+https://github.com/dshivendra/crewai_mcp_adapter.git
 ```
 
 ## Quick Start
@@ -81,6 +89,20 @@ pip install -e ".[test,docs]"
 ```bash
 pytest tests/ -v
 ```
+
+## Publishing
+
+To publish a new version to PyPI:
+
+1. Update version in pyproject.toml
+2. Build the package:
+   ```bash
+   python -m build
+   ```
+3. Upload to PyPI:
+   ```bash
+   python -m twine upload dist/*
+   ```
 
 ## License
 

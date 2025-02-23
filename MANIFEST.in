@@ -1,0 +1,16 @@
+include LICENSE
+include README.md
+include pyproject.toml
+recursive-include crewai_adapters *.py
+recursive-include docs *.md
+recursive-include examples *.py
+exclude .cache/**
+exclude .replit
+exclude .breakpoints
+exclude replit.nix
+exclude .upm/**
+exclude .pythonlibs/**
+prune tests
+prune .git
+prune __pycache__
+prune *.pyc

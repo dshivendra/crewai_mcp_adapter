@@ -75,3 +75,8 @@ build/
 *.pyc
 *.pyo
 *.pyd
+
+# Problematic directories
+.cache/
+.config/
+.pythonlibs/
