@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import logging
 import time
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from mcp.types import Tool as MCPTool, CallToolResult, TextContent
 
 from crewai_adapters.base import BaseAdapter
@@ -20,15 +20,16 @@ class CrewAITool:
     parameters: Dict[str, Any]
     func: Optional[Any] = None
 
-class DynamicToolInputModel(BaseModel):
-    """Dynamic input schema for tools."""
-    args: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Dynamic tool arguments"
-    )
+class ToolInputSchema(BaseModel):
+    """Schema for tool parameters."""
+    parameters: Dict[str, Any] = Field(default_factory=dict)
 
 class ConcreteCrewAITool(BaseTool):
     """Concrete implementation of BaseTool."""
+
+    name: str
+    description: str
+    args_schema: Type[BaseModel] = ToolInputSchema
 
     def __init__(
         self,
@@ -37,20 +38,13 @@ class ConcreteCrewAITool(BaseTool):
         execution_func: Callable[..., Any],
         args_schema: Optional[Type[BaseModel]] = None
     ):
-        """Initialize the tool.
-
-        Args:
-            name: Tool name
-            description: Tool description
-            execution_func: Function to execute
-            args_schema: Optional schema for validation
-        """
-        self._execution_func = execution_func
+        """Initialize the tool with name, description and execution function."""
         super().__init__(
             name=name,
             description=description,
-            args_schema=args_schema or DynamicToolInputModel
+            args_schema=args_schema or ToolInputSchema
         )
+        self._execution_func = execution_func
 
     async def _run(self, **kwargs: Any) -> str:
         """Execute the tool."""
@@ -102,7 +96,8 @@ class MCPToolsAdapter(BaseAdapter):
         return ConcreteCrewAITool(
             name=mcp_tool.name,
             description=mcp_tool.description or "",
-            execution_func=tool_executor
+            execution_func=tool_executor,
+            args_schema=ToolInputSchema
         )
 
     async def execute(self, **kwargs: Any) -> AdapterResponse:
@@ -184,10 +179,14 @@ class CrewAIToolsAdapter(BaseAdapter):
 
     def convert_to_crewai_tool(self, crewai_tool: CrewAITool) -> BaseTool:
         """Convert adapter tool to CrewAI tool."""
+        if not crewai_tool.func:
+            raise ConfigurationError(f"Tool {crewai_tool.name} has no execution function")
+
         return ConcreteCrewAITool(
             name=crewai_tool.name,
             description=crewai_tool.description,
-            execution_func=crewai_tool.func
+            execution_func=crewai_tool.func,
+            args_schema=ToolInputSchema
         )
 
     async def execute(self, **kwargs: Any) -> AdapterResponse:
