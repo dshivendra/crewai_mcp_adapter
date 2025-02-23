@@ -1,10 +1,10 @@
 """Tools implementation for native CrewAI adapter support."""
-from typing import Any, Dict, List, Optional, Type, Callable
+from typing import Any, Dict, List, Optional, Type, Callable, Union
 from dataclasses import dataclass
 import logging
 import time
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 
 from crewai_adapters.base import BaseAdapter
 from crewai_adapters.types import AdapterConfig, AdapterResponse
@@ -16,20 +16,18 @@ class CrewAITool:
     """Representation of a CrewAI tool."""
     name: str
     description: str
-    parameters: Dict[str, Any]
+    parameters: Union[Dict[str, Any], str]
     func: Optional[Any] = None
 
 class ToolInputSchema(BaseModel):
     """Schema for tool parameters."""
-    test: str = Field(description="Test parameter")
+    test: str = Field(..., description="Test parameter")
 
 class ConcreteCrewAITool(BaseTool):
     """Concrete implementation of CrewAI tool."""
-
-    class Config:
-        """Pydantic configuration."""
-        arbitrary_types_allowed = True
-        validate_assignment = False
+    name: str = "default_tool"
+    description: str = "Default tool description"
+    args_schema: Type[BaseModel] = ToolInputSchema
 
     def __init__(
         self,
@@ -39,35 +37,53 @@ class ConcreteCrewAITool(BaseTool):
         tool_args_schema: Optional[Type[BaseModel]] = None
     ):
         """Initialize the tool."""
-        self._name = name
-        self._description = description
-        self._tool_args_schema = tool_args_schema or ToolInputSchema
-        self._execution_func = execution_func
         super().__init__()
+        self.name = name
+        self.description = description
+        if tool_args_schema:
+            self.args_schema = tool_args_schema
+        self._execution_func = execution_func
 
-    @property
-    def name(self) -> str:
-        """Get tool name."""
-        return self._name
+    def _run(self, **kwargs: Any) -> str:
+        """Execute the tool synchronously."""
+        try:
+            result = self._execution_func(**kwargs)
+            return str(result)
+        except Exception as e:
+            logging.error(f"Tool execution failed: {str(e)}")
+            raise ExecutionError(f"Failed to execute {self.name}: {str(e)}")
 
-    @property
-    def description(self) -> str:
-        """Get tool description."""
-        return self._description
-
-    @property
-    def args_schema(self) -> Type[BaseModel]:
-        """Get argument schema."""
-        return self._tool_args_schema
-
-    async def _run(self, **kwargs: Any) -> str:
-        """Execute the tool."""
+    async def _arun(self, **kwargs: Any) -> str:
+        """Execute the tool asynchronously."""
         try:
             result = await self._execution_func(**kwargs)
             return str(result)
         except Exception as e:
             logging.error(f"Tool execution failed: {str(e)}")
             raise ExecutionError(f"Failed to execute {self.name}: {str(e)}")
+
+def _create_tool_schema(params: Dict[str, Any], schema_name: str) -> Type[BaseModel]:
+    """Create a Pydantic model for tool parameters."""
+    fields = {}
+
+    # Handle JSON Schema format
+    if "properties" in params:
+        properties = params["properties"]
+        for field_name, field_props in properties.items():
+            field_type = field_props.get("type", "string")
+            field_desc = field_props.get("description", "")
+            python_type = str if field_type == "string" else Any
+            fields[field_name] = (python_type, Field(..., description=field_desc))
+    else:
+        # Handle direct parameter definitions
+        for field_name, field_info in params.items():
+            if isinstance(field_info, dict):
+                field_desc = field_info.get("description", "")
+                fields[field_name] = (str, Field(..., description=field_desc))
+            else:
+                fields[field_name] = (str, Field(...))
+
+    return create_model(schema_name, **fields)
 
 class CrewAIToolsAdapter(BaseAdapter):
     """Adapter for handling native CrewAI tools."""
@@ -107,11 +123,21 @@ class CrewAIToolsAdapter(BaseAdapter):
         """Convert adapter tool to CrewAI tool."""
         execution_func = crewai_tool.func or self._get_default_func(crewai_tool.name)
 
+        # Parse parameters and create schema
+        params = crewai_tool.parameters
+        if isinstance(params, str):
+            # If parameters is a string, use default schema
+            tool_schema = ToolInputSchema
+        else:
+            # Create dynamic schema
+            schema_name = f"{crewai_tool.name.title()}Schema"
+            tool_schema = _create_tool_schema(params, schema_name)
+
         return ConcreteCrewAITool(
             name=crewai_tool.name,
             description=crewai_tool.description,
             execution_func=execution_func,
-            tool_args_schema=ToolInputSchema
+            tool_args_schema=tool_schema
         )
 
     def get_all_tools(self) -> List[BaseTool]:

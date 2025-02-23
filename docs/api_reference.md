@@ -54,6 +54,19 @@ class AdapterConfig(Dict[str, Any]):
     """Configuration dictionary supporting any key-value pairs."""
 ```
 
+### CrewAITool
+
+Represents a CrewAI-compatible tool.
+
+```python
+@dataclass
+class CrewAITool:
+    name: str
+    description: str
+    parameters: Union[Dict[str, Any], str]  # JSON Schema or string
+    func: Optional[Any] = None
+```
+
 ### AdapterResponse
 
 Standardized response type for adapter execution.
@@ -89,14 +102,60 @@ class ValidationError(AdapterError):
 
 ## Built-in Adapters
 
-### BasicAdapter
+### CrewAIToolsAdapter
 
-A simple adapter implementation for demonstration purposes.
+Adapter for handling native CrewAI tools.
 
 ```python
-class BasicAdapter(BaseAdapter):
+class CrewAIToolsAdapter(BaseAdapter):
+    def __init__(self, config: Optional[AdapterConfig] = None) -> None:
+        """Initialize adapter with config."""
+
+    def convert_to_crewai_tool(self, crewai_tool: CrewAITool) -> BaseTool:
+        """Convert adapter tool to CrewAI tool."""
+
+    def get_all_tools(self) -> List[BaseTool]:
+        """Get all registered tools as CrewAI tools."""
+
     async def execute(self, **kwargs: Any) -> AdapterResponse:
-        """Execute basic functionality."""
+        """Execute tool operation."""
+```
+
+### MCPToolsAdapter
+
+Adapter for handling MCP protocol tools.
+
+```python
+class MCPToolsAdapter(CrewAIToolsAdapter):
+    """Adapter for handling MCP protocol tools."""
+```
+
+## Parameter Schema Examples
+
+### JSON Schema Format
+
+```json
+{
+    "type": "object",
+    "properties": {
+        "input_data": {
+            "type": "string",
+            "description": "Input data to process"
+        }
+    },
+    "required": ["input_data"]
+}
+```
+
+### Simple Parameter Format
+
+```json
+{
+    "input_data": {
+        "type": "string",
+        "description": "Input data to process"
+    }
+}
 ```
 
 For more examples and implementations, see the [Examples](examples.md) section.
