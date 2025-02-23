@@ -18,13 +18,21 @@ class MathServerAdapter(BaseAdapter):
         """No specific validation needed for math operations."""
         pass
 
-    async def add(self, a: int, b: int) -> int:
+    def add(self, a: int, b: int) -> str:
         """Add two numbers."""
-        return a + b
+        try:
+            result = int(a) + int(b)
+            return str(result)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid input for addition: {str(e)}")
 
-    async def multiply(self, a: int, b: int) -> int:
+    def multiply(self, a: int, b: int) -> str:
         """Multiply two numbers."""
-        return a * b
+        try:
+            result = int(a) * int(b)
+            return str(result)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid input for multiplication: {str(e)}")
 
     def _register_tools(self) -> Dict[str, CrewAITool]:
         """Register available math tools."""
@@ -75,7 +83,7 @@ class MathServerAdapter(BaseAdapter):
 
         try:
             tool = self.tools[tool_name]
-            result = await tool.func(**parameters)
+            result = tool.func(**parameters)
 
             return AdapterResponse(
                 success=True,

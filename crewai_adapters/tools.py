@@ -1,8 +1,9 @@
 """Tools implementation for native CrewAI adapter support."""
-from typing import Any, Dict, List, Optional, Type, Callable, Union
+from typing import Any, Dict, List, Optional, Type, Callable, Union, Awaitable
 from dataclasses import dataclass
 import logging
 import time
+import asyncio
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field, create_model
 
@@ -17,7 +18,7 @@ class CrewAITool:
     name: str
     description: str
     parameters: Union[Dict[str, Any], str]
-    func: Optional[Any] = None
+    func: Optional[Callable[..., Union[str, Awaitable[str]]]] = None
 
 class ToolInputSchema(BaseModel):
     """Schema for tool parameters."""
@@ -33,7 +34,7 @@ class ConcreteCrewAITool(BaseTool):
         self,
         name: str,
         description: str,
-        execution_func: Callable[..., Any],
+        execution_func: Callable[..., Union[str, Awaitable[str]]],
         tool_args_schema: Optional[Type[BaseModel]] = None
     ):
         """Initialize the tool."""
@@ -48,6 +49,8 @@ class ConcreteCrewAITool(BaseTool):
         """Execute the tool synchronously."""
         try:
             result = self._execution_func(**kwargs)
+            if asyncio.iscoroutine(result):
+                result = asyncio.get_event_loop().run_until_complete(result)
             return str(result)
         except Exception as e:
             logging.error(f"Tool execution failed: {str(e)}")
@@ -56,7 +59,9 @@ class ConcreteCrewAITool(BaseTool):
     async def _arun(self, **kwargs: Any) -> str:
         """Execute the tool asynchronously."""
         try:
-            result = await self._execution_func(**kwargs)
+            result = self._execution_func(**kwargs)
+            if asyncio.iscoroutine(result):
+                result = await result
             return str(result)
         except Exception as e:
             logging.error(f"Tool execution failed: {str(e)}")
@@ -113,9 +118,9 @@ class CrewAIToolsAdapter(BaseAdapter):
             except Exception as e:
                 logging.error(f"Failed to register tool {tool_config.get('name')}: {str(e)}")
 
-    def _get_default_func(self, tool_name: str) -> Callable[..., Any]:
+    def _get_default_func(self, tool_name: str) -> Callable[..., str]:
         """Get default execution function for a tool."""
-        async def default_func(**kwargs: Any) -> str:
+        def default_func(**kwargs: Any) -> str:
             return f"Executed {tool_name} with parameters {kwargs}"
         return default_func
 
@@ -179,11 +184,13 @@ class CrewAIToolsAdapter(BaseAdapter):
             )
 
             execution_func = tool.func or self._get_default_func(tool_name)
-            result = await execution_func(**parameters)
+            result = execution_func(**parameters)
+            if asyncio.iscoroutine(result):
+                result = await result
 
             return AdapterResponse(
                 success=True,
-                data=result,
+                data=str(result),
                 metadata=metadata
             )
 
