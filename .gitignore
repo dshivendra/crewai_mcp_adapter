@@ -76,7 +76,8 @@ build/
 *.pyo
 *.pyd
 
-# Problematic directories
+# Project specific
+attached_assets/
 .cache/
 .config/
 .pythonlibs/
