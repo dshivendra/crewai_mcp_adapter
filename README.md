@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/dshivendra-crewai-mcp-adapter-badge.png)](https://mseep.ai/app/dshivendra-crewai-mcp-adapter)
+
 # CrewAI MCP Adapter
 
 A Python library extending CrewAI's adapter ecosystem with [Model Context Protocol (MCP)](https://modelcontextprotocol.io/introduction) integration support and comprehensive tooling for custom agent and tool development.
